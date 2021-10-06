@@ -2,7 +2,7 @@ from flask import Flask,request
 from flask_restful import Resource,Api
 from flask_pymongo import PyMongo,ObjectId
 from flask_jwt_extended import (JWTManager,create_access_token,get_jwt_identity,jwt_required)
-from werkzeug.security import safe_str_cmp
+from werkzeug.security import safe_str_cmp,generate_password_hash,check_password_hash
 
 app = Flask(__name__)
 app.secret_key = "xyygsxbw5xw5wx5wwqxqw6"
@@ -27,7 +27,7 @@ class Register(Resource):
     
     def post(self):
         data = request.get_json()
-        user = {"first_name":data["first_name"],"last_name":data["last_name"], "email":data["email"], "password":data["password"]}
+        user = {"first_name":data["first_name"],"last_name":data["last_name"], "email":data["email"], "password":generate_password_hash(data["password"])}
         new_user = Register.find_by_email(user["email"])
         if new_user:
             return {"message" : "user with this email, already exists."}, 400
@@ -69,6 +69,7 @@ class Template(Resource):
 
     
 class Templateid(Resource):
+    
 
     @classmethod
     def find_template_by_id(cls,id):
@@ -117,7 +118,7 @@ class UserLogin(Resource):
         data = request.get_json()
         user = Register.find_by_email(data['email'])
         user_id = str(user['_id'])
-        if user and safe_str_cmp(user["password"],data["password"]):
+        if user and check_password_hash(user["password"],data["password"]):
             access_token = create_access_token(identity=user_id,fresh=True)
             return {
                 'access_token':access_token,
