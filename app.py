@@ -117,13 +117,16 @@ class UserLogin(Resource):
     def post(self):
         data = request.get_json()
         user = Register.find_by_email(data['email'])
+        if not user:
+            return {"message":"Pleace insert the correct EmailID."},400
         user_id = str(user['_id'])
         if user and check_password_hash(user["password"],data["password"]):
             access_token = create_access_token(identity=user_id,fresh=True)
             return {
                 'access_token':access_token,
             },200
-        return {"message":"Invalid credentials"},401
+        else:
+            return {"message":"Invalid credentials"},401
 
 
 api.add_resource(Register,'/register')
