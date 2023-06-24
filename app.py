@@ -1,13 +1,28 @@
+from cmath import log
 from flask import Flask,request
 from flask_restful import Resource,Api
 from flask_pymongo import PyMongo,ObjectId
+from pprint import pprint
 from flask_jwt_extended import (JWTManager,create_access_token,get_jwt_identity,jwt_required)
 from werkzeug.security import safe_str_cmp,generate_password_hash,check_password_hash
+from serializer.register import register
+from serializer.login import login
+from serializer.template import template
+from common.validate import validator
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+SECRET_KEY = os.environ.get('SECRET_KEY')
+DB_NAME= os.environ.get('MONGODB_NAME')
+DB_URL = os.environ.get('DB_URL')
+# from common_functions.serializar import deserializer
 
 app = Flask(__name__)
-app.secret_key = "xyygsxbw5xw5wx5wwqxqw6"
-app.config["MONGO_DBNAME"] = "mydatabase"
-app.config["MONGO_URI"] = "mongodb+srv://giridaran:giri2742@cluster0.afk2c.mongodb.net/mydatabase?retryWrites=true&w=majority"
+app.secret_key = SECRET_KEY
+app.config["MONGO_DBNAME"] = DB_NAME
+app.config["MONGO_URI"] = DB_URL
 mongo = PyMongo(app)
 api = Api(app)
 jwt = JWTManager(app)
@@ -25,14 +40,16 @@ class Register(Resource):
     def find_by_email(cls,email=None):
         return mongo.db.users.find_one({"email":email})
     
+    @validator(register)
     def post(self):
         data = request.get_json()
         user = {"first_name":data["first_name"],"last_name":data["last_name"], "email":data["email"], "password":generate_password_hash(data["password"])}
-        new_user = Register.find_by_email(user["email"])
+        new_user = Register.find_by_email(data['email'])
         if new_user:
             return {"message" : "user with this email, already exists."}, 400
         else:
             try:
+                data['password']=generate_password_hash(data['password'])
                 Register.add_user(user)
                 return {"message" : "User created Sucessfully"},201
             except:
@@ -45,6 +62,7 @@ class Template(Resource):
         mongo.db.templates.insert_one(template)
 
     @jwt_required()
+    @validator(template)
     def post(self):
         data = request.get_json()
         user_id = get_jwt_identity()
@@ -63,7 +81,7 @@ class Template(Resource):
             templates = []
             for template in data.find({"user_id":user_id}):
                 templates.append({"id":str(template["_id"]),"template_name":template["template_name"], "subject":template["subject"], "body":template["body"]})
-            return {"Body":templates}, 200
+            return {"Output":templates}, 200
         except:
             return {"messsage":"error in geting templates, try again"},500
 
@@ -87,6 +105,7 @@ class Templateid(Resource):
             return {"message":"error is getting template, try again"},500
 
     @jwt_required()
+    @validator(template)
     def put(self,template_id):
         data = Templateid.find_template_by_id(template_id)
         try:
@@ -111,9 +130,23 @@ class Templateid(Resource):
             return {"message":"error in deleting template, try again"},500
 
 
+class Templates_sub(Resource):
+
+    @jwt_required()
+    def get(self,subject):
+        try:
+            data = mongo.db.templates
+            templates = []
+            for template in data.find({"subject":subject}):
+                templates.append({"id":str(template["_id"]),"template_name":template["template_name"], "subject":template["subject"], "body":template["body"]})
+            return {"Output":templates}, 200
+        except:
+            return {"messsage":"error in geting templates, try again"},500
+
+
 class UserLogin(Resource):
 
-
+    @validator(login)
     def post(self):
         data = request.get_json()
         user = Register.find_by_email(data['email'])
@@ -132,7 +165,8 @@ class UserLogin(Resource):
 api.add_resource(Register,'/register')
 api.add_resource(Template, '/template')
 api.add_resource(UserLogin,'/login')
-api.add_resource(Templateid,'/templateid/<string:template_id>')
+api.add_resource(Templateid,'/template/<string:template_id>')
+api.add_resource(Templates_sub,'/template/<string:subject>')
 
 
 if __name__ == "__main__":
